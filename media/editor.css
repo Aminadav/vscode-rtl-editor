@@ -14,48 +14,6 @@ body {
     flex-direction: column;
 }
 
-/* Toolbar */
-.toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
-    background-color: var(--vscode-editorGroupHeader-tabsBackground);
-    border-bottom: 1px solid var(--vscode-editorGroup-border);
-    flex-shrink: 0;
-}
-
-.file-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.file-name {
-    font-weight: 500;
-    color: var(--vscode-tab-activeForeground);
-}
-
-.status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--vscode-charts-green);
-}
-
-.status-indicator.modified {
-    background-color: var(--vscode-charts-orange);
-}
-
-.status-indicator.error {
-    background-color: var(--vscode-charts-red);
-}
-
-.toolbar-buttons {
-    display: flex;
-    gap: 8px;
-}
-
 /* Buttons */
 .btn {
     padding: 6px 12px;
@@ -127,7 +85,6 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 16px;
     overflow: hidden;
 }
 
@@ -135,14 +92,13 @@ body {
 .rtl-editor {
     width: 100%;
     height: 100%;
-    border: 1px solid var(--vscode-input-border);
-    border-radius: 4px;
+    border: none;
     padding: 16px;
     font-family: 'Arial', 'Tahoma', 'Segoe UI', sans-serif;
     font-size: 14px;
     line-height: 1.6;
-    background-color: var(--vscode-input-background);
-    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
     resize: none;
     outline: none;
     
@@ -156,11 +112,6 @@ body {
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-}
-
-.rtl-editor:focus {
-    border-color: var(--vscode-focusBorder);
-    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
 }
 
 .rtl-editor::placeholder {

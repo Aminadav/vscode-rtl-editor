@@ -45,7 +45,11 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
                     await this.saveDocument(document, message.content, webviewPanel.webview);
                     break;
                 case 'refresh':
-                    this.updateWebview(webviewPanel.webview, document);
+                    this.refreshFromDisk(document, webviewPanel.webview);
+                    break;
+                case 'refreshWithDraft':
+                    // Refresh but keep user's draft content for comparison
+                    this.refreshWithDraftContent(document, webviewPanel.webview, message.draftContent);
                     break;
             }
         });
@@ -57,15 +61,28 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             }
         });
 
-        // Watch for external file changes - watch the specific file
+        // Watch for external file changes - use a more reliable pattern
         const fileWatcher = vscode.workspace.createFileSystemWatcher(
-            document.uri.fsPath,
+            new vscode.RelativePattern(
+                vscode.Uri.file(path.dirname(document.uri.fsPath)),
+                path.basename(document.uri.fsPath)
+            ),
             true, // ignore creates
             false, // watch changes
             true // ignore deletes
         );
 
-        let lastModified = 0;
+        let lastModifiedTime = 0;
+        let isExternalChange = false;
+        
+        // Initialize with current file time
+        try {
+            const initialStats = await vscode.workspace.fs.stat(document.uri);
+            lastModifiedTime = initialStats.mtime;
+        } catch (error) {
+            // File might not exist yet
+        }
+
         fileWatcher.onDidChange(async () => {
             // Prevent triggering on our own saves
             if (this.isInternalSave) {
@@ -77,16 +94,19 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
                 const stats = await vscode.workspace.fs.stat(document.uri);
                 const currentModified = stats.mtime;
                 
-                // Only notify if enough time has passed and it's actually a different modification
-                if (currentModified > lastModified + 1000) { // 1 second buffer
-                    lastModified = currentModified;
+                // Only notify if this is truly an external change
+                if (currentModified > lastModifiedTime + 100) { // 100ms buffer
+                    lastModifiedTime = currentModified;
+                    isExternalChange = true;
+                    
                     webviewPanel.webview.postMessage({ 
                         type: 'fileChanged',
-                        message: 'File has been modified externally'
+                        message: 'File has been modified externally. Click Refresh to reload or continue editing.',
+                        hasUnsavedChanges: true // Let the webview decide based on its state
                     });
                 }
             } catch (error) {
-                // File might not exist, ignore
+                console.error('Error checking file modification time:', error);
             }
         });
 
@@ -139,6 +159,45 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
         });
     }
 
+    private async refreshFromDisk(document: vscode.TextDocument, webview: vscode.Webview): Promise<void> {
+        try {
+            // Force reload the document from disk
+            const fileContent = await vscode.workspace.fs.readFile(document.uri);
+            const textContent = Buffer.from(fileContent).toString('utf8');
+            
+            webview.postMessage({
+                type: 'refreshComplete',
+                content: textContent
+            });
+        } catch (error) {
+            webview.postMessage({
+                type: 'refreshError',
+                message: 'Failed to refresh file: ' + (error instanceof Error ? error.message : 'Unknown error')
+            });
+        }
+    }
+
+    private async refreshWithDraftContent(document: vscode.TextDocument, webview: vscode.Webview, draftContent: string): Promise<void> {
+        try {
+            // Get the current file content from disk
+            const fileContent = await vscode.workspace.fs.readFile(document.uri);
+            const diskContent = Buffer.from(fileContent).toString('utf8');
+            
+            // Send both contents to webview for user to decide
+            webview.postMessage({
+                type: 'showMergeDialog',
+                diskContent: diskContent,
+                draftContent: draftContent,
+                message: 'File was modified externally. Choose which version to keep:'
+            });
+        } catch (error) {
+            webview.postMessage({
+                type: 'refreshError',
+                message: 'Failed to compare file versions: ' + (error instanceof Error ? error.message : 'Unknown error')
+            });
+        }
+    }
+
     private getHtmlForWebview(webview: vscode.Webview, document: vscode.TextDocument): string {
         const styleUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.context.extensionUri, 'media', 'editor.css')
@@ -161,21 +220,6 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             <link rel="stylesheet" href="${styleUri}">
         </head>
         <body>
-            <div class="toolbar">
-                <div class="file-info">
-                    <span class="file-name">${fileName}</span>
-                    <div id="status-indicator" class="status-indicator"></div>
-                </div>
-                <div class="toolbar-buttons">
-                    <button id="refresh-btn" class="btn btn-secondary" title="Refresh from file">
-                        <span>🔄</span> Refresh
-                    </button>
-                    <button id="save-btn" class="btn btn-primary" title="Save file">
-                        <span>💾</span> Save
-                    </button>
-                </div>
-            </div>
-            
             <div id="notification-bar" class="notification-bar hidden">
                 <span id="notification-message"></span>
                 <button id="notification-refresh" class="btn btn-small">Refresh</button>
@@ -184,13 +228,6 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             
             <div class="editor-container">
                 <textarea id="editor" class="rtl-editor" placeholder="Start typing in RTL mode...">${this.escapeHtml(content)}</textarea>
-            </div>
-            
-            <div class="status-bar">
-                <div class="status-message">
-                    <span id="save-status">RTL Mode Enabled</span>
-                </div>
-                <span id="char-count">Characters: ${content.length}</span>
             </div>
             
             <script src="${scriptUri}"></script>

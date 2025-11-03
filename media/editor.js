@@ -5,26 +5,17 @@
     
     // Get DOM elements
     const editor = document.getElementById('editor');
-    const saveBtn = document.getElementById('save-btn');
-    const refreshBtn = document.getElementById('refresh-btn');
-    const statusIndicator = document.getElementById('status-indicator');
-    const charCount = document.getElementById('char-count');
     const notificationBar = document.getElementById('notification-bar');
     const notificationMessage = document.getElementById('notification-message');
     const notificationRefresh = document.getElementById('notification-refresh');
     const notificationDismiss = document.getElementById('notification-dismiss');
-    const saveStatus = document.getElementById('save-status');
     
     let isDirty = false;
     let originalContent = '';
-    let saveStatusTimeout;
     
     // Initialize editor
     function init() {
         originalContent = editor.value;
-        updateCharCount();
-        updateStatus();
-        updateSaveStatus();
         
         // Auto-resize textarea
         autoResize();
@@ -37,20 +28,7 @@
         // Editor change events
         editor.addEventListener('input', function() {
             isDirty = (editor.value !== originalContent);
-            updateStatus();
-            updateSaveStatus();
-            updateCharCount();
             autoResize();
-        });
-        
-        // Save button
-        saveBtn.addEventListener('click', function() {
-            save();
-        });
-        
-        // Refresh button
-        refreshBtn.addEventListener('click', function() {
-            refresh();
         });
         
         // Keyboard shortcuts
@@ -59,12 +37,6 @@
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
                 save();
-            }
-            
-            // Ctrl+R / Cmd+R to refresh
-            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-                e.preventDefault();
-                refresh();
             }
             
             // Handle RTL/LTR direction toggle with Ctrl+Shift+X
@@ -76,6 +48,7 @@
         
         // Notification bar events
         notificationRefresh.addEventListener('click', function() {
+            // This will be overridden by showFileChangedNotification when needed
             refresh();
             hideNotification();
         });
@@ -105,13 +78,28 @@
         
         originalContent = editor.value;
         isDirty = false;
-        updateStatus();
-        updateSaveStatus();
     }
     
     function refresh() {
+        if (isDirty) {
+            // If user has unsaved changes, ask what to do
+            if (confirm('You have unsaved changes. Do you want to refresh and lose your changes?\n\nClick OK to refresh (lose changes)\nClick Cancel to keep editing')) {
+                vscode.postMessage({
+                    type: 'refresh'
+                });
+            }
+        } else {
+            vscode.postMessage({
+                type: 'refresh'
+            });
+        }
+    }
+    
+    function refreshWithDraft() {
+        // Send current draft content for comparison
         vscode.postMessage({
-            type: 'refresh'
+            type: 'refreshWithDraft',
+            draftContent: editor.value
         });
     }
     
@@ -119,70 +107,55 @@
         editor.value = content;
         originalContent = content;
         isDirty = false;
-        updateStatus();
-        updateSaveStatus();
-        updateCharCount();
         autoResize();
-    }
-    
-    function updateStatus() {
-        if (isDirty) {
-            statusIndicator.className = 'status-indicator modified';
-            statusIndicator.title = 'File has unsaved changes';
-        } else {
-            statusIndicator.className = 'status-indicator';
-            statusIndicator.title = 'File is saved';
-        }
-    }
-    
-    function updateSaveStatus() {
-        // Clear any existing timeout
-        clearTimeout(saveStatusTimeout);
-        
-        if (isDirty) {
-            saveStatus.textContent = 'Changes not saved';
-            saveStatus.parentElement.className = 'status-message unsaved';
-        } else {
-            saveStatus.textContent = 'RTL Mode Enabled';
-            saveStatus.parentElement.className = 'status-message';
-        }
-    }
-    
-    function showSaveConfirmation() {
-        clearTimeout(saveStatusTimeout);
-        saveStatus.textContent = 'File saved';
-        saveStatus.parentElement.className = 'status-message saved';
-        
-        // Show for 3 seconds by default (can be made configurable)
-        saveStatusTimeout = setTimeout(() => {
-            updateSaveStatus();
-        }, 3000);
-    }
-    
-    function updateCharCount() {
-        const count = editor.value.length;
-        charCount.textContent = `Characters: ${count}`;
-        
-        // Also show word count for RTL text
-        const words = editor.value.trim().split(/\s+/).filter(word => word.length > 0).length;
-        charCount.textContent += ` | Words: ${words}`;
-    }
-    
-    function showTemporaryStatus(message) {
-        const originalTitle = statusIndicator.title;
-        statusIndicator.title = message;
-        statusIndicator.className = 'status-indicator';
-        
-        setTimeout(() => {
-            statusIndicator.title = originalTitle;
-            updateStatus();
-        }, 1500);
     }
     
     function showNotification(message, type = 'warning') {
         notificationMessage.textContent = message;
         notificationBar.className = `notification-bar ${type}`;
         notificationBar.classList.remove('hidden');
+    }
+    
+    function showFileChangedNotification(message, hasUnsavedChanges) {
+        // Create enhanced notification for file changes
+        notificationMessage.innerHTML = message;
+        notificationBar.className = 'notification-bar warning';
+        notificationBar.classList.remove('hidden');
+        
+        // Update buttons based on whether user has unsaved changes
+        if (hasUnsavedChanges && isDirty) {
+            notificationRefresh.textContent = 'Compare & Merge';
+            notificationRefresh.onclick = function() {
+                refreshWithDraft();
+            };
+        } else {
+            notificationRefresh.textContent = 'Refresh';
+            notificationRefresh.onclick = function() {
+                refresh();
+                hideNotification();
+            };
+        }
+    }
+    
+    function showMergeDialog(diskContent, draftContent, message) {
+        // Create a simple merge interface
+        const choice = confirm(
+            message + '\n\n' +
+            'Your version (length: ' + draftContent.length + ' chars)\n' +
+            'vs\n' +
+            'Disk version (length: ' + diskContent.length + ' chars)\n\n' +
+            'Click OK to keep your version\n' +
+            'Click Cancel to use disk version'
+        );
+        
+        if (choice) {
+            // Keep user's version - just hide notification
+            hideNotification();
+        } else {
+            // Use disk version
+            updateContent(diskContent);
+            hideNotification();
+        }
     }
     
     function hideNotification() {
@@ -196,8 +169,6 @@
         
         editor.style.direction = newDir;
         editor.style.textAlign = newAlign;
-        
-        showTemporaryStatus(`Direction: ${newDir.toUpperCase()}`);
     }
     
     function autoResize() {
@@ -237,11 +208,23 @@
                 break;
                 
             case 'fileChanged':
-                showNotification(message.message, 'warning');
+                showFileChangedNotification(message.message, message.hasUnsavedChanges);
+                break;
+                
+            case 'refreshComplete':
+                updateContent(message.content);
+                hideNotification();
+                break;
+                
+            case 'refreshError':
+                showNotification(message.message, 'error');
+                break;
+                
+            case 'showMergeDialog':
+                showMergeDialog(message.diskContent, message.draftContent, message.message);
                 break;
                 
             case 'saveSuccess':
-                showSaveConfirmation();
                 hideNotification();
                 break;
                 
@@ -271,7 +254,6 @@
         const currentSize = parseInt(window.getComputedStyle(editor).fontSize);
         const newSize = Math.max(10, Math.min(24, currentSize + delta));
         editor.style.fontSize = newSize + 'px';
-        showTemporaryStatus(`Font size: ${newSize}px`);
     }
     
     // Font size keyboard shortcuts
@@ -286,7 +268,6 @@
             } else if (e.key === '0') {
                 e.preventDefault();
                 editor.style.fontSize = '14px';
-                showTemporaryStatus('Font size reset');
             }
         }
     });
