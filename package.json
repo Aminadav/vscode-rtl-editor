@@ -1,0 +1,118 @@
+{
+  "name": "rtl-editor",
+  "displayName": "RTL Editor",
+  "description": "A custom text editor with right-to-left (RTL) support for Arabic and Hebrew text editing",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "rtl-editor.openRtlEditor",
+        "title": "Open in RTL Editor",
+        "category": "RTL Editor",
+        "icon": "$(book)"
+      },
+      {
+        "command": "rtl-editor.createRtlFile",
+        "title": "Create New RTL File",
+        "category": "RTL Editor"
+      }
+    ],
+    "configuration": {
+      "title": "RTL Editor",
+      "properties": {
+        "rtlEditor.showEditorButton": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show RTL Editor button in the editor toolbar for text and markdown files"
+        },
+        "rtlEditor.autoDetectRtl": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect RTL text and adjust text direction"
+        },
+        "rtlEditor.saveConfirmationDuration": {
+          "type": "number",
+          "default": 3000,
+          "description": "Duration (in milliseconds) to show save confirmation message",
+          "minimum": 1000,
+          "maximum": 10000
+        }
+      }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "rtl-editor.openRtlEditor",
+          "when": "!explorerResourceIsFolder",
+          "group": "2_workspace"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "rtl-editor.openRtlEditor",
+          "group": "1_open"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "rtl-editor.openRtlEditor",
+          "when": "config.rtlEditor.showEditorButton && (resourceExtname == .txt || resourceExtname == .md)",
+          "group": "navigation"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "rtl-editor.rtlTextEditor",
+        "displayName": "RTL Text Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.txt"
+          },
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.rtl"
+          }
+        ],
+        "priority": "option"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.105.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
+    "eslint": "^9.36.0",
+    "esbuild": "^0.25.10",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
