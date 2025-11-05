@@ -1,5 +1,8 @@
 # RTL Editor - VS Code Extension
 
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/Aminadav.rtl-editor?style=for-the-badge&label=VS%20Marketplace&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=Aminadav.rtl-editor)
+[![Install](https://img.shields.io/badge/Install-Direct%20Link-blue?style=for-the-badge&logo=visual-studio-code)](vscode:extension/Aminadav.rtl-editor)
+
 A custom text editor extension for VS Code that provides enhanced support for right-to-left (RTL) text editing, specifically designed for Arabic and Hebrew text.
 
 ![RTL Editor Screenshot](screenshot.png)
