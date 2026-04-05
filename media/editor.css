@@ -88,6 +88,43 @@ body {
     overflow: hidden;
 }
 
+/* Editor Wrapper */
+.editor-wrapper {
+    flex: 1;
+    display: flex;
+    overflow: auto;
+    position: relative;
+}
+
+/* Line Numbers */
+.line-numbers {
+    padding: 16px 8px 16px 8px;
+    font-family: 'Arial', 'Tahoma', 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--vscode-editorLineNumber-foreground, #858585);
+    background-color: var(--vscode-editorGutter-background, var(--vscode-editor-background));
+    text-align: right;
+    user-select: none;
+    flex-shrink: 0;
+    min-width: 40px;
+    border-left: 1px solid var(--vscode-editorGroup-border, #444);
+}
+
+.line-numbers div {
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+/* Hidden mirror div to measure wrapped line heights */
+.line-mirror {
+    position: absolute;
+    visibility: hidden;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
 /* RTL Text Editor */
 .rtl-editor {
     width: 100%;

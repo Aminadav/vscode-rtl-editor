@@ -9,17 +9,27 @@
     const notificationMessage = document.getElementById('notification-message');
     const notificationRefresh = document.getElementById('notification-refresh');
     const notificationDismiss = document.getElementById('notification-dismiss');
-    
+    const lineNumbers = document.getElementById('line-numbers');
+    const lineMirror = document.getElementById('line-mirror');
+
     let isDirty = false;
     let originalContent = '';
-    
+
     // Initialize editor
     function init() {
         originalContent = editor.value;
         
         // Auto-resize textarea
         autoResize();
-        
+        updateLineNumbers();
+
+        // Sync line numbers scroll with editor scroll
+        if (lineNumbers) {
+            editor.addEventListener('scroll', function() {
+                lineNumbers.scrollTop = editor.scrollTop;
+            });
+        }
+
         // Setup event listeners
         setupEventListeners();
     }
@@ -29,6 +39,7 @@
         editor.addEventListener('input', function() {
             isDirty = (editor.value !== originalContent);
             autoResize();
+            updateLineNumbers();
         });
         
         // Keyboard shortcuts
@@ -108,6 +119,7 @@
         originalContent = content;
         isDirty = false;
         autoResize();
+        updateLineNumbers();
     }
     
     function showNotification(message, type = 'warning') {
@@ -174,12 +186,59 @@
     function autoResize() {
         // Reset height to calculate new height
         editor.style.height = 'auto';
-        
+
         // Set new height based on scroll height
         const newHeight = Math.max(200, editor.scrollHeight);
         editor.style.height = newHeight + 'px';
     }
-    
+
+    function updateLineNumbers() {
+        if (!lineNumbers || !lineMirror) {
+            return;
+        }
+
+        // Copy computed styles from textarea to mirror div
+        const computed = window.getComputedStyle(editor);
+        const stylesToCopy = [
+            'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
+            'lineHeight', 'letterSpacing', 'wordSpacing',
+            'textRendering', 'direction', 'textAlign', 'unicodeBidi',
+            'fontFeatureSettings', 'paddingLeft', 'paddingRight',
+            'borderLeftWidth', 'borderRightWidth', 'boxSizing'
+        ];
+        for (const prop of stylesToCopy) {
+            lineMirror.style[prop] = computed[prop];
+        }
+        lineMirror.style.width = editor.clientWidth + 'px';
+
+        // Render all lines in the mirror at once, each in a div,
+        // then read offsetTop to avoid cumulative rounding errors
+        const lines = editor.value.split('\n');
+        let mirrorHtml = '';
+        for (let i = 0; i < lines.length; i++) {
+            mirrorHtml += '<div>' + (lines[i] ? escapeHtml(lines[i]) : '\u00a0') + '</div>';
+        }
+        lineMirror.innerHTML = mirrorHtml;
+
+        const mirrorDivs = lineMirror.children;
+        let numbersHtml = '';
+        for (let i = 0; i < mirrorDivs.length; i++) {
+            const top = mirrorDivs[i].offsetTop;
+            const height = (i < mirrorDivs.length - 1)
+                ? mirrorDivs[i + 1].offsetTop - top
+                : mirrorDivs[i].offsetHeight;
+            numbersHtml += '<div style="height:' + height + 'px">' + (i + 1) + '</div>';
+        }
+        lineNumbers.innerHTML = numbersHtml;
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     // Detect RTL/LTR content and adjust accordingly
     function detectTextDirection() {
         const text = editor.value;
@@ -246,14 +305,18 @@
         setTimeout(() => {
             detectTextDirection();
             autoResize();
+            updateLineNumbers();
         }, 10);
     });
-    
+
     // Handle font size adjustments
     function adjustFontSize(delta) {
         const currentSize = parseInt(window.getComputedStyle(editor).fontSize);
         const newSize = Math.max(10, Math.min(24, currentSize + delta));
         editor.style.fontSize = newSize + 'px';
+        if (lineNumbers) {
+            lineNumbers.style.fontSize = newSize + 'px';
+        }
     }
     
     // Font size keyboard shortcuts
@@ -268,6 +331,9 @@
             } else if (e.key === '0') {
                 e.preventDefault();
                 editor.style.fontSize = '14px';
+                if (lineNumbers) {
+                    lineNumbers.style.fontSize = '14px';
+                }
             }
         }
     });
