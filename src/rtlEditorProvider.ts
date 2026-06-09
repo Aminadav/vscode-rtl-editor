@@ -3,7 +3,6 @@ import * as path from 'path';
 
 export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
     private static readonly viewType = 'rtl-editor.rtlTextEditor';
-    private isInternalSave = false;
 
     public static register(context: vscode.ExtensionContext): vscode.Disposable {
         const provider = new RtlEditorProvider(context);
@@ -41,8 +40,21 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
         // Handle messages from the webview
         webviewPanel.webview.onDidReceiveMessage(async message => {
             switch (message.type) {
+                case 'edit':
+                    await this.applyEdit(document, message.start, message.end, message.text);
+                    break;
+                case 'undo':
+                    await vscode.commands.executeCommand('undo');
+                    break;
+                case 'redo':
+                    await vscode.commands.executeCommand('redo');
+                    break;
                 case 'save':
-                    await this.saveDocument(document, message.content, webviewPanel.webview);
+                    await document.save();
+                    webviewPanel.webview.postMessage({
+                        type: 'saveSuccess',
+                        message: 'File saved successfully'
+                    });
                     break;
                 case 'refresh':
                     this.refreshFromDisk(document, webviewPanel.webview);
@@ -56,7 +68,7 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
 
         // Handle text document changes
         const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
-            if (e.document.uri.toString() === document.uri.toString() && !this.isInternalSave) {
+            if (e.document.uri.toString() === document.uri.toString()) {
                 this.updateWebview(webviewPanel.webview, document);
             }
         });
@@ -73,16 +85,10 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
         );
 
         fileWatcher.onDidChange(async () => {
-            if (this.isInternalSave) {
-                return;
-            }
-
             try {
                 const fileContent = await vscode.workspace.fs.readFile(document.uri);
                 const diskContent = Buffer.from(fileContent).toString('utf8');
 
-                // Only notify if disk content actually differs from what the document model has.
-                // This avoids false positives from our own save (mtime touched, content unchanged).
                 if (diskContent === document.getText()) {
                     return;
                 }
@@ -107,31 +113,14 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
         this.updateWebview(webviewPanel.webview, document);
     }
 
-    private async saveDocument(document: vscode.TextDocument, content: string, webview: vscode.Webview): Promise<void> {
-        this.isInternalSave = true;
-
-        try {
-            const workspaceEdit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            workspaceEdit.replace(document.uri, fullRange, content);
-            await vscode.workspace.applyEdit(workspaceEdit);
-            await document.save();
-
-            webview.postMessage({
-                type: 'saveSuccess',
-                message: 'File saved successfully'
-            });
-        } catch (error) {
-            webview.postMessage({
-                type: 'saveError',
-                message: 'Failed to save file: ' + (error instanceof Error ? error.message : 'Unknown error')
-            });
-        } finally {
-            this.isInternalSave = false;
-        }
+    private async applyEdit(document: vscode.TextDocument, start: number, end: number, text: string): Promise<void> {
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(
+            document.uri,
+            new vscode.Range(document.positionAt(start), document.positionAt(end)),
+            text
+        );
+        await vscode.workspace.applyEdit(edit);
     }
 
     private updateWebview(webview: vscode.Webview, document: vscode.TextDocument): void {
