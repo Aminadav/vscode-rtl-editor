@@ -68,13 +68,6 @@
             hideNotification();
         });
         
-        // Auto-save on focus lost
-        editor.addEventListener('blur', function() {
-            if (isDirty) {
-                save();
-            }
-        });
-        
         // Context menu for direction switching
         editor.addEventListener('contextmenu', function(e) {
             // Let VS Code handle the context menu, but we could add custom items here
@@ -115,7 +108,12 @@
     }
     
     function updateContent(content) {
-        editor.value = content;
+        if (editor.value !== content) {
+            // setRangeText preserves the textarea's native undo stack and selection,
+            // unlike `editor.value = content` which wipes both.
+            editor.focus({ preventScroll: true });
+            editor.setRangeText(content, 0, editor.value.length, 'preserve');
+        }
         originalContent = content;
         isDirty = false;
         autoResize();

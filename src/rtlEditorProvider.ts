@@ -72,41 +72,28 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             true // ignore deletes
         );
 
-        let lastModifiedTime = 0;
-        let isExternalChange = false;
-        
-        // Initialize with current file time
-        try {
-            const initialStats = await vscode.workspace.fs.stat(document.uri);
-            lastModifiedTime = initialStats.mtime;
-        } catch (error) {
-            // File might not exist yet
-        }
-
         fileWatcher.onDidChange(async () => {
-            // Prevent triggering on our own saves
             if (this.isInternalSave) {
                 return;
             }
-            
-            // Get file stats to check modification time
+
             try {
-                const stats = await vscode.workspace.fs.stat(document.uri);
-                const currentModified = stats.mtime;
-                
-                // Only notify if this is truly an external change
-                if (currentModified > lastModifiedTime + 100) { // 100ms buffer
-                    lastModifiedTime = currentModified;
-                    isExternalChange = true;
-                    
-                    webviewPanel.webview.postMessage({ 
-                        type: 'fileChanged',
-                        message: 'File has been modified externally. Click Refresh to reload or continue editing.',
-                        hasUnsavedChanges: true // Let the webview decide based on its state
-                    });
+                const fileContent = await vscode.workspace.fs.readFile(document.uri);
+                const diskContent = Buffer.from(fileContent).toString('utf8');
+
+                // Only notify if disk content actually differs from what the document model has.
+                // This avoids false positives from our own save (mtime touched, content unchanged).
+                if (diskContent === document.getText()) {
+                    return;
                 }
+
+                webviewPanel.webview.postMessage({
+                    type: 'fileChanged',
+                    message: 'File has been modified externally. Click Refresh to reload or continue editing.',
+                    hasUnsavedChanges: true
+                });
             } catch (error) {
-                console.error('Error checking file modification time:', error);
+                console.error('Error checking external file change:', error);
             }
         });
 
@@ -122,7 +109,7 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
 
     private async saveDocument(document: vscode.TextDocument, content: string, webview: vscode.Webview): Promise<void> {
         this.isInternalSave = true;
-        
+
         try {
             const workspaceEdit = new vscode.WorkspaceEdit();
             const fullRange = new vscode.Range(
@@ -132,23 +119,18 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             workspaceEdit.replace(document.uri, fullRange, content);
             await vscode.workspace.applyEdit(workspaceEdit);
             await document.save();
-            
-            // Notify webview that save was successful
+
             webview.postMessage({
                 type: 'saveSuccess',
                 message: 'File saved successfully'
             });
         } catch (error) {
-            // Notify webview of save error
             webview.postMessage({
                 type: 'saveError',
                 message: 'Failed to save file: ' + (error instanceof Error ? error.message : 'Unknown error')
             });
         } finally {
-            // Reset the flag after a short delay to allow file system events to settle
-            setTimeout(() => {
-                this.isInternalSave = false;
-            }, 500);
+            this.isInternalSave = false;
         }
     }
 
