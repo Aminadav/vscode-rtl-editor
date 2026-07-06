@@ -227,7 +227,11 @@ export class RtlEditorProvider implements vscode.CustomTextEditorProvider {
             </div>
             
             <div class="editor-container">
-                <textarea id="editor" class="rtl-editor" placeholder="Start typing in RTL mode...">${this.escapeHtml(content)}</textarea>
+                <div class="editor-wrapper">
+                    <textarea id="editor" class="rtl-editor" placeholder="Start typing in RTL mode...">${this.escapeHtml(content)}</textarea>
+                    <div id="line-numbers" class="line-numbers"></div>
+                    <div id="line-mirror" class="line-mirror"></div>
+                </div>
             </div>
             
             <script src="${scriptUri}"></script>
