@@ -1,0 +1,52 @@
+name: Publish to VS Code Marketplace
+
+# Auto-publish the extension whenever a change lands on master
+# (e.g. a merged pull request). Each publish automatically bumps the
+# patch version, commits + tags the bump, and pushes it back.
+on:
+  push:
+    branches: [master]
+
+  # Allow manually triggering a publish from the Actions tab as well.
+  workflow_dispatch: {}
+
+# Needed so the workflow can push the version-bump commit + tag back.
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Persisted GITHUB_TOKEN credentials are used to push the bump.
+          # Pushes made with GITHUB_TOKEN do NOT re-trigger this workflow,
+          # so the auto-bump commit won't cause an infinite loop.
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure git author for the version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version and publish to the Marketplace
+        # `vsce publish patch` bumps the patch version in package.json,
+        # creates a commit + git tag for it, then runs `vscode:prepublish`
+        # (npm run package -> esbuild build) and publishes.
+        run: npx @vscode/vsce publish patch
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Push version bump commit and tag
+        run: git push --follow-tags origin HEAD:master
