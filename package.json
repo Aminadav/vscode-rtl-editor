@@ -2,7 +2,7 @@
   "name": "rtl-editor",
   "displayName": "RTL Editor",
   "description": "A custom text editor with right-to-left (RTL) support for Arabic and Hebrew text editing",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "Aminadav",
   "author": {
     "name": "Aminadav Glickshtein"
@@ -17,11 +17,11 @@
   },
   "homepage": "https://github.com/Aminadav/vscode-rtl-editor#readme",
   "keywords": [
-    "rtl", 
-    "arabic", 
-    "hebrew", 
-    "right-to-left", 
-    "text-editor", 
+    "rtl",
+    "arabic",
+    "hebrew",
+    "right-to-left",
+    "text-editor",
     "markdown"
   ],
   "engines": {
