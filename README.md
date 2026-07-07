@@ -75,3 +75,5 @@ The RTL Editor works with:
 ## License
 
 MIT License
+
+[Coltonos.com - Build your WhatsApp assistant in minutes](https://coltonos.com)
